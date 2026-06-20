@@ -1,4 +1,4 @@
-# Family Calendar — deployment guide.
+# Family Calendar — deployment guide
 
 This is the real, database-backed version of the family calendar. Follow
 these steps in order.
