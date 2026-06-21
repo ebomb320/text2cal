@@ -369,6 +369,17 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
+  
+  // Second safety net: mobile browsers can silently drop the live
+  // connection (screen lock, backgrounded tab) with no error at all.
+  // Polling guarantees updates never go stale for more than ~30s even
+  // if that happens, on top of the instant realtime updates above.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      getEvents().then(setEvents).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const saveTitle = (next) => {
     const clean = next.trim() || "Family Calendar";
