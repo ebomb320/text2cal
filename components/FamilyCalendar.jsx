@@ -10,6 +10,9 @@ import {
   restoreEvent as dbRestoreEvent,
   updateSettingsTitle,
   updateMember,
+  addMember as dbAddMember,
+  setMemberArchived,
+  getMemberLink,
   purgeOldDeleted,
   subscribeToChanges,
 } from "../lib/calendarData";
@@ -292,6 +295,7 @@ function Badge({ count }) {
 }
 
 export default function FamilyCalendar({ currentUser, members: initialMembers, initialTitle }) {
+  const isAdmin = currentUser.role === "admin";
   const today = new Date();
   const windowWidth = useWindowWidth();
   const isWide = windowWidth >= 640;
@@ -309,12 +313,20 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
   const [showTrash, setShowTrash] = useState(false);
   const [title, setTitle] = useState(initialTitle || "Family Calendar");
   const [editingTitle, setEditingTitle] = useState(false);
+  const [pressingTitle, setPressingTitle] = useState(false);
+  const titlePressTimer = useRef(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
   const [previousVisit, setPreviousVisit] = useState(null);
   const [seenIds, setSeenIds] = useState(() => new Set());
   const [members, setMembers] = useState(initialMembers);
   const [showEditNames, setShowEditNames] = useState(false);
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberColor, setNewMemberColor] = useState(COLOR_OPTIONS[0]);
+  const [addingMember, setAddingMember] = useState(false);
+  const [revealedLink, setRevealedLink] = useState(null); // { id, name, url } shown for whoever's link was just added or looked up
+  const [loadingLinkId, setLoadingLinkId] = useState(null);
 
   const gridSwipeX = useRef(null);
   const gridSwipeY = useRef(null);
@@ -365,6 +377,21 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
     updateSettingsTitle(clean).catch((err) => console.error("Failed to save title:", err));
   };
 
+  const startTitlePress = () => {
+    setPressingTitle(true);
+    titlePressTimer.current = setTimeout(() => {
+      setEditingTitle(true);
+      setPressingTitle(false);
+    }, 500);
+  };
+  const cancelTitlePress = () => {
+    setPressingTitle(false);
+    if (titlePressTimer.current) {
+      clearTimeout(titlePressTimer.current);
+      titlePressTimer.current = null;
+    }
+  };
+
   const saveMemberName = (id, next) => {
     const clean = next.trim();
     if (!clean) return;
@@ -376,6 +403,66 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
     setMembers((ms) => ms.map((m) => (m.id === id ? { ...m, color } : m)));
     updateMember(id, { color }).catch((err) => console.error("Failed to save color:", err));
   };
+
+  const slugify = (name, existingIds) => {
+    const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "") || "member";
+    let id = base, n = 2;
+    while (existingIds.includes(id)) id = `${base}-${n++}`;
+    return id;
+  };
+
+  const handleAddMember = async () => {
+    if (!isAdmin) return;
+    const name = newMemberName.trim();
+    if (!name || addingMember) return;
+    setAddingMember(true);
+    try {
+      const id = slugify(name, members.map((m) => m.id));
+      const created = await dbAddMember(id, name, newMemberColor);
+      setMembers((ms) => [...ms, created]);
+      setNewMemberName("");
+      setRevealedLink({ id: created.id, name: created.name, url: `${window.location.origin}/c/${created.link_token}` });
+    } catch (err) {
+      console.error("Failed to add member:", err);
+      setToast({ msg: "Couldn't add them — try again." });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeMember = (id) => {
+    if (!isAdmin) return;
+    setMembers((ms) => ms.map((m) => (m.id === id ? { ...m, archived: true } : m)));
+    setConfirmRemoveMember(null);
+    setFilter((f) => f.filter((x) => x !== id));
+    setMemberArchived(id, true).catch((err) => console.error("Failed to remove member:", err));
+  };
+
+  const restoreMember = (id) => {
+    if (!isAdmin) return;
+    setMembers((ms) => ms.map((m) => (m.id === id ? { ...m, archived: false } : m)));
+    setMemberArchived(id, false).catch((err) => console.error("Failed to restore member:", err));
+  };
+
+  const viewMemberLink = async (m) => {
+    if (!isAdmin) return;
+    if (revealedLink?.id === m.id) { setRevealedLink(null); return; } // tap again to hide
+    setLoadingLinkId(m.id);
+    try {
+      const token = await getMemberLink(m.id);
+      setRevealedLink({ id: m.id, name: m.name, url: `${window.location.origin}/c/${token}` });
+    } catch (err) {
+      console.error("Failed to look up link:", err);
+      setToast({ msg: "Couldn't look that up — try again." });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setLoadingLinkId(null);
+    }
+  };
+
+  const activeMembers = useMemo(() => members.filter((m) => !m.archived), [members]);
+  const archivedMembers = useMemo(() => members.filter((m) => m.archived), [members]);
 
   const byDate = useMemo(() => {
     const active = events.filter((ev) => !ev.deletedAt);
@@ -588,17 +675,24 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, textAlign: "center", border: "1px solid #ECE7DC", borderRadius: 12, padding: "6px 12px", background: "#fff", width: "85%", boxSizing: "border-box", color: "#2B2B33" }}
             />
           ) : (
-            <button onClick={() => setEditingTitle(true)} title="Tap to rename"
-              style={{ border: "none", background: "none", cursor: "pointer", fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, color: "#2B2B33", padding: "4px 8px" }}>
-              {title} <span style={{ fontSize: 12, opacity: 0.3 }}>✎</span>
+            <button
+              onTouchStart={startTitlePress}
+              onTouchEnd={cancelTitlePress}
+              onTouchMove={cancelTitlePress}
+              onMouseDown={startTitlePress}
+              onMouseUp={cancelTitlePress}
+              onMouseLeave={cancelTitlePress}
+              title="Press and hold to rename"
+              style={{
+                border: "none", background: "none", cursor: "pointer", borderRadius: 10,
+                fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, color: "#2B2B33", padding: "4px 8px",
+                transform: pressingTitle ? "scale(0.96)" : "scale(1)",
+                opacity: pressingTitle ? 0.55 : 1,
+                transition: "transform 0.15s ease, opacity 0.15s ease",
+              }}>
+              {title}
             </button>
           )}
-        </div>
-        <div style={{ textAlign: "center", fontSize: 11.5, opacity: 0.4, fontWeight: 700, marginBottom: 14 }}>
-          <button onClick={() => setShowEditNames(true)}
-            style={{ border: "none", background: "none", padding: 0, cursor: "pointer", color: "inherit", fontSize: "inherit", fontWeight: "inherit", textDecoration: "underline" }}>
-            Edit names
-          </button>
         </div>
 
         {/* Header */}
@@ -621,7 +715,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
             </button>
             {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
           </span>
-          {members.map((m) => {
+          {activeMembers.map((m) => {
             const on = filter.includes(m.id);
             const count = updateCounts.byMember[m.id] || 0;
             return (
@@ -644,6 +738,10 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               {updateCounts.trash > 0 && <Badge count={updateCounts.trash} />}
             </span>
           )}
+          <button onClick={() => setShowEditNames(true)} aria-label="Edit family"
+            style={{ width: 30, height: 30, borderRadius: 99, border: "1px solid #ECE7DC", background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            ✎
+          </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 6 }}>
           {DOW.map((d, i) => (
@@ -760,7 +858,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                   </button>
                   {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
                 </span>
-                {members.map((m) => {
+                {activeMembers.map((m) => {
                   const on = filter.includes(m.id);
                   const count = updateCounts.byMember[m.id] || 0;
                   return (
@@ -861,18 +959,19 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
         {/* Edit family names sheet */}
         {showEditNames && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 14 }}
-            onClick={() => setShowEditNames(false)}>
+            onClick={() => { setShowEditNames(false); setRevealedLink(null); }}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
               style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "75vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: "#ECE7DC", margin: "0 auto 14px" }} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>Edit family names</div>
-                <button onClick={() => setShowEditNames(false)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
+                <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>Edit family</div>
+                <button onClick={() => { setShowEditNames(false); setRevealedLink(null); }} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
               </div>
               <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 14 }}>
                 Changes save automatically and show up for everyone right away.
               </div>
-              {members.map((m) => (
+
+              {activeMembers.map((m) => (
                 <div key={m.id} style={{ padding: "14px 0", borderTop: "1px solid #F3EFE6" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <span style={{ width: 12, height: 12, borderRadius: 99, background: m.color, flexShrink: 0 }} />
@@ -883,6 +982,18 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                       maxLength={24}
                       style={{ flex: 1, border: "1px solid #ECE7DC", borderRadius: 10, padding: "8px 12px", fontSize: 15, fontWeight: 700, background: "#fff", boxSizing: "border-box" }}
                     />
+                    {isAdmin && (
+                      <button onClick={() => viewMemberLink(m)}
+                        style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#2B2B33", cursor: "pointer", flexShrink: 0 }}>
+                        {loadingLinkId === m.id ? "…" : "Link"}
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={() => setConfirmRemoveMember(m)}
+                        style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#D64541", cursor: "pointer", flexShrink: 0 }}>
+                        Remove
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 7, paddingLeft: 22 }}>
                     {COLOR_OPTIONS.map((c) => (
@@ -890,8 +1001,91 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                         style={{ width: 22, height: 22, borderRadius: 99, background: c, border: m.color === c ? "2px solid #2B2B33" : "2px solid transparent", cursor: "pointer", padding: 0 }} />
                     ))}
                   </div>
+                  {revealedLink?.id === m.id && (
+                    <div style={{ marginTop: 10, marginLeft: 22, background: "#FBF9F4", border: "1px solid #ECE7DC", borderRadius: 12, padding: 12 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+                        {revealedLink.name}'s link — share this with them:
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1, fontSize: 11.5, fontFamily: "monospace", background: "#fff", border: "1px solid #ECE7DC", borderRadius: 8, padding: "7px 9px", overflowX: "auto", whiteSpace: "nowrap" }}>
+                          {revealedLink.url}
+                        </div>
+                        <button onClick={() => navigator.clipboard?.writeText(revealedLink.url)}
+                          style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
+
+              {/* Add a new family member */}
+              {isAdmin && (
+                <div style={{ padding: "16px 0 4px", borderTop: "1px solid #F3EFE6", marginTop: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.55, marginBottom: 8 }}>Add someone new</div>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      value={newMemberName}
+                      onChange={(e) => setNewMemberName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddMember()}
+                      placeholder="Name"
+                      maxLength={24}
+                      style={{ flex: 1, border: "1px solid #ECE7DC", borderRadius: 10, padding: "8px 12px", fontSize: 15, background: "#fff", boxSizing: "border-box" }}
+                    />
+                    <button onClick={handleAddMember} disabled={!newMemberName.trim() || addingMember}
+                      style={{ border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 14, fontWeight: 800, color: "#fff", background: newMemberName.trim() && !addingMember ? "#2B2B33" : "#C9C4B8", cursor: newMemberName.trim() && !addingMember ? "pointer" : "default", flexShrink: 0 }}>
+                      {addingMember ? "…" : "Add"}
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", gap: 7 }}>
+                    {COLOR_OPTIONS.map((c) => (
+                      <button key={c} onClick={() => setNewMemberColor(c)} aria-label={`Set color ${c}`}
+                        style={{ width: 22, height: 22, borderRadius: 99, background: c, border: newMemberColor === c ? "2px solid #2B2B33" : "2px solid transparent", cursor: "pointer", padding: 0 }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Removed members — can be restored anytime, admin only */}
+              {isAdmin && archivedMembers.length > 0 && (
+                <div style={{ padding: "16px 0 4px", borderTop: "1px solid #F3EFE6", marginTop: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.55, marginBottom: 8 }}>Removed</div>
+                  {archivedMembers.map((m) => (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 99, background: m.color, flexShrink: 0, opacity: 0.5 }} />
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 700, opacity: 0.5 }}>{m.name}</span>
+                      <button onClick={() => restoreMember(m.id)} style={{ ...chip, fontWeight: 800 }}>Restore</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Confirm removing a family member */}
+        {confirmRemoveMember && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 16, padding: 24 }}
+            onClick={() => setConfirmRemoveMember(null)}>
+            <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", width: "100%", maxWidth: 340, boxShadow: "0 12px 32px rgba(43,43,51,.25)" }}>
+              <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, marginBottom: 6 }}>
+                Remove {confirmRemoveMember.name}?
+              </div>
+              <div style={{ fontSize: 14, opacity: 0.65, marginBottom: 16 }}>
+                Their personal link will stop working and they'll disappear from the chip list. Past activities stay on the calendar, and you can restore them anytime.
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setConfirmRemoveMember(null)}
+                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "#fff", color: "#2B2B33", border: "1px solid #ECE7DC" }}>
+                  Cancel
+                </button>
+                <button onClick={() => removeMember(confirmRemoveMember.id)}
+                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "#D64541", color: "#fff", border: "none" }}>
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
         )}
