@@ -253,7 +253,7 @@ function EventRow({ ev, members, onDelete, onSwipeDelete }) {
   };
 
   return (
-    <div style={{ position: "relative", overflow: "hidden", borderTop: "1px solid #F3EFE6" }}>
+    <div style={{ position: "relative", overflow: "hidden", borderTop: "1px solid var(--border)" }}>
       <div style={{ position: "absolute", inset: 0, background: armed ? "#B73330" : "#D64541", display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 22px", transition: "background 0.15s ease" }}>
         <button onClick={() => onDelete(ev)}
           style={{ border: "none", background: "none", color: "#fff", fontWeight: armed ? 900 : 700, fontSize: armed ? 15 : 13, transform: armed ? "scale(1.12)" : "scale(1)", transition: "all 0.15s ease", cursor: "pointer" }}>
@@ -263,9 +263,9 @@ function EventRow({ ev, members, onDelete, onSwipeDelete }) {
       <div
         ref={rowRef}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", background: "#fff", transform: `translateX(${open ? -REVEAL : offsetX}px)`, opacity: removing ? 0 : 1, transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease", userSelect: "none" }}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", background: "var(--surface)", transform: `translateX(${open ? -REVEAL : offsetX}px)`, opacity: removing ? 0 : 1, transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease", userSelect: "none" }}
       >
-        <span style={{ width: 10, height: 10, borderRadius: 99, background: m.color, flexShrink: 0 }} />
+        <span style={{ width: 10, height: 10, borderRadius: 99, background: m.color, flexShrink: 0, boxShadow: isDark ? "0 0 8px 1px " + m.color : "none" }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{ev.title}</div>
           <div style={{ fontSize: 12, opacity: 0.55 }}>{[timeLabel(ev), rangeLabel(ev), m.name].filter(Boolean).join(" · ")}</div>
@@ -287,7 +287,7 @@ function Badge({ count }) {
       position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, padding: "0 4px",
       borderRadius: 99, background: "#D64541", color: "#fff", fontSize: 11, fontWeight: 800,
       display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
-      border: "2px solid #FBF9F4", pointerEvents: "none",
+      border: isDark ? "2px solid #1B1620" : "2px solid #FBF9F4", pointerEvents: "none",
     }}>
       {count > 9 ? "9+" : count}
     </span>
@@ -314,6 +314,15 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
   const [title, setTitle] = useState(initialTitle || "Family Calendar");
   const [editingTitle, setEditingTitle] = useState(false);
   const [pressingTitle, setPressingTitle] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    try { return window.localStorage.getItem(`fc-theme-${currentUser?.id}`) || "light"; } catch { return "light"; }
+  });
+  const isDark = theme === "midnight";
+  const toggleTheme = () => {
+    const next = isDark ? "light" : "midnight";
+    setTheme(next);
+    try { window.localStorage.setItem(`fc-theme-${currentUser?.id}`, next); } catch {}
+  };
   const titlePressTimer = useRef(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
@@ -369,7 +378,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
-  
+
   // Second safety net: mobile browsers can silently drop the live
   // connection (screen lock, backgrounded tab) with no error at all.
   // Polling guarantees updates never go stale for more than ~30s even
@@ -657,21 +666,26 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
     : "";
 
   return (
-    <div style={{ fontFamily: "'Nunito', system-ui, sans-serif", background: "#FBF9F4", minHeight: "100vh", color: "#2B2B33" }}>
+    <div data-theme={theme} style={{ fontFamily: "'Nunito', system-ui, sans-serif", background: isDark ? "#1B1620" : "#FBF9F4", minHeight: "100vh", color: isDark ? "#F5F0E8" : "#2B2B33", transition: "background .3s ease, color .3s ease" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700;800&display=swap');
+        [data-theme="light"]  { --bg:#FBF9F4; --surface:#FFFFFF; --text:#2B2B33; --border:#ECE7DC; --today-bg:#FFF3D6; --today-glow:none; --dot-glow:none; --chip-bg:#FFFFFF; --shadow:0 4px 16px rgba(43,43,51,.08); }
+        [data-theme="midnight"] { --bg:#1B1620; --surface:#241D2B; --text:#F5F0E8; --border:#3A2E45; --today-bg:#2E2436; --today-glow:0 0 0 2px #FFB066,0 0 18px 2px rgba(255,176,102,.45); --dot-glow:0 0 7px 1px currentColor; --chip-bg:#241D2B; --shadow:0 4px 20px rgba(0,0,0,.4); }
         .fc-day { transition: transform .08s ease; }
         .fc-day:active { transform: scale(.93); }
         .fc-sheet { animation: fcUp .22s ease; }
         @keyframes fcUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .fc-grid-wrap { perspective: 1200px; }
-        .fc-page-next { transform-origin: left center; animation: fcPageNext .32s ease-out; backface-visibility: hidden; }
-        .fc-page-prev { transform-origin: right center; animation: fcPagePrev .32s ease-out; backface-visibility: hidden; }
+        .fc-page-next { transform-origin: left center; animation: fcPageNext .32s ease-out; }
+        .fc-page-prev { transform-origin: right center; animation: fcPagePrev .32s ease-out; }
         @keyframes fcPageNext { from { transform: rotateY(-32deg) scale(.97); opacity: .55; } to { transform: rotateY(0deg) scale(1); opacity: 1; } }
         @keyframes fcPagePrev { from { transform: rotateY(32deg) scale(.97); opacity: .55; } to { transform: rotateY(0deg) scale(1); opacity: 1; } }
-        @media (prefers-reduced-motion: reduce) { .fc-sheet { animation: none; } .fc-day { transition: none; } .fc-page-next, .fc-page-prev { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .fc-sheet,.fc-day,.fc-page-next,.fc-page-prev { animation: none; transition: none; } }
         input, select { font-family: inherit; }
+        .fc-theme-btn { position: fixed; top: 14px; right: 14px; z-index: 20; width: 36px; height: 36px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .25s ease; }
+        [data-theme="midnight"] .fc-theme-btn { box-shadow: 0 0 10px 1px rgba(255,176,102,.35); }
       `}</style>
+      <button className="fc-theme-btn" onClick={toggleTheme} aria-label="Toggle theme">{isDark ? "🌙" : "☀️"}</button>
 
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 120px" }}>
         {/* Calendar title — tap to rename */}
@@ -683,7 +697,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               onBlur={(e) => saveTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && saveTitle(e.target.value)}
               maxLength={40}
-              style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, textAlign: "center", border: "1px solid #ECE7DC", borderRadius: 12, padding: "6px 12px", background: "#fff", width: "85%", boxSizing: "border-box", color: "#2B2B33" }}
+              style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, textAlign: "center", border: "1px solid var(--border)", borderRadius: 12, padding: "6px 12px", background: "var(--surface)", width: "85%", boxSizing: "border-box", color: "var(--text)" }}
             />
           ) : (
             <button
@@ -696,7 +710,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               title="Press and hold to rename"
               style={{
                 border: "none", background: "none", cursor: "pointer", borderRadius: 10,
-                fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, color: "#2B2B33", padding: "4px 8px",
+                fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 20, color: "var(--text)", padding: "4px 8px",
                 transform: pressingTitle ? "scale(0.96)" : "scale(1)",
                 opacity: pressingTitle ? 0.55 : 1,
                 transition: "transform 0.15s ease, opacity 0.15s ease",
@@ -721,7 +735,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
         <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", margin: "14px 0 18px" }}>
           <span style={{ position: "relative" }}>
             <button onClick={() => setFilter([])}
-              style={{ ...chip, background: filter.length === 0 ? "#2B2B33" : "#fff", color: filter.length === 0 ? "#fff" : "#2B2B33", borderColor: filter.length === 0 ? "#2B2B33" : "#ECE7DC" }}>
+              style={{ ...chip, background: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--surface)", color: filter.length === 0 ? (isDark ? "#1B1620" : "#fff") : "var(--text)", borderColor: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--border)", boxShadow: filter.length === 0 && isDark ? "0 0 14px 2px rgba(255,176,102,.45)" : "none" }}>
               Everyone
             </button>
             {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
@@ -732,7 +746,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
             return (
               <span key={m.id} style={{ position: "relative" }}>
                 <button onClick={() => (count > 0 ? jumpToMemberUpdate(m.id) : toggleFilter(m.id))}
-                  style={{ ...chip, background: on ? m.color : "#fff", color: on ? "#fff" : "#2B2B33", borderColor: on ? m.color : "#ECE7DC" }}>
+                  style={{ ...chip, background: on ? m.color : "var(--surface)", color: on ? "#fff" : "var(--text)", borderColor: on ? m.color : "var(--border)", boxShadow: on && isDark ? "0 0 14px 1px " + m.color : "none" }}>
                   <span style={{ width: 8, height: 8, borderRadius: 99, background: on ? "#fff" : m.color }} />
                   {m.name}
                 </button>
@@ -743,14 +757,14 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           {deletedEvents.length > 0 && (
             <span style={{ position: "relative" }}>
               <button onClick={() => setShowTrash(true)}
-                style={{ ...chip, background: "#fff", color: "#2B2B33", borderColor: "#ECE7DC", opacity: 0.7 }}>
+                style={{ ...chip, background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)", opacity: 0.7 }}>
                 🗑 Deleted ({deletedEvents.length})
               </button>
               {updateCounts.trash > 0 && <Badge count={updateCounts.trash} />}
             </span>
           )}
           <button onClick={() => setShowEditNames(true)} aria-label="Edit family"
-            style={{ width: 30, height: 30, borderRadius: 99, border: "1px solid #ECE7DC", background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: 30, height: 30, borderRadius: 99, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             ✎
           </button>
         </div>
@@ -781,15 +795,15 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                   className="fc-day"
                   onClick={() => setSelected(isSel ? null : key)}
                   style={{
-                    aspectRatio: "1 / 1.15", border: isSel ? "2px solid #2B2B33" : "1px solid #ECE7DC",
-                    borderRadius: 14, background: isToday ? "#FFF3D6" : "#fff", cursor: "pointer",
+                    aspectRatio: "1 / 1.15", border: isSel ? ("2px solid var(--text)") : ("1px solid var(--border)"),
+                    borderRadius: 14, background: isToday ? "var(--today-bg)" : "var(--surface)", cursor: "pointer",
                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: 2,
                   }}
                 >
                   <span style={{ fontSize: 14, fontWeight: isToday ? 800 : 600 }}>{d}</span>
                   <span style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center", minHeight: 7 }}>
                     {evs.slice(0, 4).map((ev) => (
-                      <span key={ev.id} style={{ width: 7, height: 7, borderRadius: 99, background: memberById(members, ev.member).color }} />
+                      <span key={ev.id} style={{ width: 7, height: 7, borderRadius: 99, background: memberById(members, ev.member).color, boxShadow: isDark ? "0 0 7px 1px " + memberById(members, ev.member).color : "none" }} />
                     ))}
                   </span>
                 </button>
@@ -800,7 +814,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
 
         {/* Day detail — inline panel on tablet/desktop, bottom sheet on phone */}
         {selected && isWide && (
-          <div className="fc-sheet" style={{ marginTop: 18, background: "#fff", border: "1px solid #ECE7DC", borderRadius: 18, padding: "16px 18px 20px", boxShadow: "0 4px 16px rgba(43,43,51,.08)" }}>
+          <div className="fc-sheet" style={{ marginTop: 18, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 18, padding: "16px 18px 20px", boxShadow: "0 4px 16px rgba(43,43,51,.08)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>{selectedLabel}</div>
               <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
@@ -814,8 +828,8 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 9 }}
             onClick={() => setSelected(null)}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 99, background: "#ECE7DC", margin: "0 auto 14px" }} />
+              style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border)", margin: "0 auto 14px" }} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>{selectedLabel}</div>
                 <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
@@ -831,8 +845,8 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 15 }}
             onClick={() => setShowMonthPicker(false)}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#FBF9F4", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480 }}>
-              <div style={{ width: 36, height: 4, borderRadius: 99, background: "#ECE7DC", margin: "0 auto 16px" }} />
+              style={{ background: "var(--bg)", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border)", margin: "0 auto 16px" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <button onClick={() => setPickerYear((y) => y - 1)} style={navBtn}>‹</button>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 22 }}>{pickerYear}</div>
@@ -864,7 +878,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
                 <span style={{ position: "relative" }}>
                   <button onClick={() => setFilter([])}
-                    style={{ ...chip, background: filter.length === 0 ? "#2B2B33" : "#fff", color: filter.length === 0 ? "#fff" : "#2B2B33", borderColor: filter.length === 0 ? "#2B2B33" : "#ECE7DC" }}>
+                    style={{ ...chip, background: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--surface)", color: filter.length === 0 ? (isDark ? "#1B1620" : "#fff") : "var(--text)", borderColor: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--border)", boxShadow: filter.length === 0 && isDark ? "0 0 14px 2px rgba(255,176,102,.45)" : "none" }}>
                     Everyone
                   </button>
                   {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
@@ -875,7 +889,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                   return (
                     <span key={m.id} style={{ position: "relative" }}>
                       <button onClick={() => (count > 0 ? jumpToMemberUpdate(m.id) : setFilter(on ? [] : [m.id]))}
-                        style={{ ...chip, background: on ? m.color : "#fff", color: on ? "#fff" : "#2B2B33", borderColor: on ? m.color : "#ECE7DC" }}>
+                        style={{ ...chip, background: on ? m.color : "var(--surface)", color: on ? "#fff" : "var(--text)", borderColor: on ? m.color : "var(--border)", boxShadow: on && isDark ? "0 0 14px 1px " + m.color : "none" }}>
                         <span style={{ width: 8, height: 8, borderRadius: 99, background: on ? "#fff" : m.color }} />
                         {m.name}
                       </button>
@@ -892,7 +906,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                   return (
                     <button key={i}
                       onClick={() => { setView({ y: pickerYear, m: i }); setShowMonthPicker(false); }}
-                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, borderRadius: 12, border: isCurrent ? "2px solid #2B2B33" : "1px solid #ECE7DC", background: isCurrent ? "#2B2B33" : "#fff", color: isCurrent ? "#fff" : "#2B2B33", padding: "10px 0 8px", fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>
+                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, borderRadius: 12, border: isCurrent ? "2px solid var(--text)" : "1px solid var(--border)", background: isCurrent ? "var(--text)" : "var(--surface)", color: isCurrent ? "var(--bg)" : "var(--text)", padding: "10px 0 8px", fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" }}>
                       <span>{mn.slice(0, 3)}</span>
                       <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.55 }}>{count}</span>
                     </button>
@@ -904,7 +918,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
         )}
 
         {/* Text bar — adds activities to the shared calendar */}
-        <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#FBF9F4", borderTop: "1px solid #ECE7DC", padding: "10px 14px 16px" }}>
+        <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "var(--bg)", borderTop: "1px solid var(--border)", padding: "10px 14px 16px" }}>
           <div style={{ maxWidth: 480, margin: "0 auto" }}>
             <div style={{ display: "flex", gap: 8 }}>
               <input
@@ -913,7 +927,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 onKeyDown={(e) => e.key === "Enter" && sendText()}
                 placeholder='e.g. "Soccer 9am" — date defaults to today'
                 disabled={sending}
-                style={{ flex: 1, border: "1px solid #ECE7DC", borderRadius: 999, padding: "11px 16px", fontSize: 15, background: "#fff", boxSizing: "border-box" }}
+                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 999, padding: "11px 16px", fontSize: 15, background: "var(--surface)", boxSizing: "border-box" }}
               />
               <button onClick={sendText} disabled={sending} aria-label="Add activity"
                 style={{ width: 44, height: 44, borderRadius: 99, border: "none", background: draft.trim() && !sending ? "#4A7CFA" : "#C9C4B8", color: "#fff", fontSize: 18, cursor: sending ? "default" : "pointer", flexShrink: 0 }}>
@@ -928,8 +942,8 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 10 }}
             onClick={() => setShowTrash(false)}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 99, background: "#ECE7DC", margin: "0 auto 14px" }} />
+              style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "70vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border)", margin: "0 auto 14px" }} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>Recently deleted</div>
                 <button onClick={() => setShowTrash(false)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
@@ -945,8 +959,8 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 const evDate = new Date(ev.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
                 const deletedByMember = ev.deletedBy ? memberById(members, ev.deletedBy) : null;
                 return (
-                  <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid #F3EFE6" }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 99, background: m.color, flexShrink: 0 }} />
+                  <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid var(--border)" }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 99, background: m.color, flexShrink: 0, boxShadow: isDark ? "0 0 8px 1px " + m.color : "none" }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{ev.title}</div>
                       <div style={{ fontSize: 12, opacity: 0.55 }}>
@@ -972,8 +986,8 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 14 }}
             onClick={() => { setShowEditNames(false); setRevealedLink(null); }}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "75vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 99, background: "#ECE7DC", margin: "0 auto 14px" }} />
+              style={{ background: "var(--surface)", borderRadius: "20px 20px 0 0", padding: "18px 18px 30px", width: "100%", maxWidth: 480, maxHeight: "75vh", overflowY: "auto", boxShadow: "0 -8px 24px rgba(43,43,51,.15)" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border)", margin: "0 auto 14px" }} />
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 18 }}>Edit family</div>
                 <button onClick={() => { setShowEditNames(false); setRevealedLink(null); }} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
@@ -983,7 +997,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               </div>
 
               {activeMembers.map((m) => (
-                <div key={m.id} style={{ padding: "14px 0", borderTop: "1px solid #F3EFE6" }}>
+                <div key={m.id} style={{ padding: "14px 0", borderTop: "1px solid var(--border)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <span style={{ width: 12, height: 12, borderRadius: 99, background: m.color, flexShrink: 0 }} />
                     <input
@@ -991,17 +1005,17 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                       onBlur={(e) => saveMemberName(m.id, e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
                       maxLength={24}
-                      style={{ flex: 1, border: "1px solid #ECE7DC", borderRadius: 10, padding: "8px 12px", fontSize: 15, fontWeight: 700, background: "#fff", boxSizing: "border-box" }}
+                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, fontWeight: 700, background: "var(--surface)", boxSizing: "border-box" }}
                     />
                     {isAdmin && (
                       <button onClick={() => viewMemberLink(m)}
-                        style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#2B2B33", cursor: "pointer", flexShrink: 0 }}>
+                        style={{ border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>
                         {loadingLinkId === m.id ? "…" : "Link"}
                       </button>
                     )}
                     {isAdmin && (
                       <button onClick={() => setConfirmRemoveMember(m)}
-                        style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#D64541", cursor: "pointer", flexShrink: 0 }}>
+                        style={{ border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 10, padding: "8px 10px", fontSize: 12, fontWeight: 700, color: "#D64541", cursor: "pointer", flexShrink: 0 }}>
                         Remove
                       </button>
                     )}
@@ -1013,16 +1027,16 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                     ))}
                   </div>
                   {revealedLink?.id === m.id && (
-                    <div style={{ marginTop: 10, marginLeft: 22, background: "#FBF9F4", border: "1px solid #ECE7DC", borderRadius: 12, padding: 12 }}>
+                    <div style={{ marginTop: 10, marginLeft: 22, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
                         {revealedLink.name}'s link — share this with them:
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <div style={{ flex: 1, fontSize: 11.5, fontFamily: "monospace", background: "#fff", border: "1px solid #ECE7DC", borderRadius: 8, padding: "7px 9px", overflowX: "auto", whiteSpace: "nowrap" }}>
+                        <div style={{ flex: 1, fontSize: 11.5, fontFamily: "monospace", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "7px 9px", overflowX: "auto", whiteSpace: "nowrap" }}>
                           {revealedLink.url}
                         </div>
                         <button onClick={() => navigator.clipboard?.writeText(revealedLink.url)}
-                          style={{ border: "1px solid #ECE7DC", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>
+                          style={{ border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer", flexShrink: 0 }}>
                           Copy
                         </button>
                       </div>
@@ -1033,7 +1047,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
 
               {/* Add a new family member */}
               {isAdmin && (
-                <div style={{ padding: "16px 0 4px", borderTop: "1px solid #F3EFE6", marginTop: 4 }}>
+                <div style={{ padding: "16px 0 4px", borderTop: "1px solid var(--border)", marginTop: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.55, marginBottom: 8 }}>Add someone new</div>
                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                     <input
@@ -1042,7 +1056,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                       onKeyDown={(e) => e.key === "Enter" && handleAddMember()}
                       placeholder="Name"
                       maxLength={24}
-                      style={{ flex: 1, border: "1px solid #ECE7DC", borderRadius: 10, padding: "8px 12px", fontSize: 15, background: "#fff", boxSizing: "border-box" }}
+                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, background: "var(--surface)", boxSizing: "border-box" }}
                     />
                     <button onClick={handleAddMember} disabled={!newMemberName.trim() || addingMember}
                       style={{ border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 14, fontWeight: 800, color: "#fff", background: newMemberName.trim() && !addingMember ? "#2B2B33" : "#C9C4B8", cursor: newMemberName.trim() && !addingMember ? "pointer" : "default", flexShrink: 0 }}>
@@ -1060,7 +1074,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
 
               {/* Removed members — can be restored anytime, admin only */}
               {isAdmin && archivedMembers.length > 0 && (
-                <div style={{ padding: "16px 0 4px", borderTop: "1px solid #F3EFE6", marginTop: 4 }}>
+                <div style={{ padding: "16px 0 4px", borderTop: "1px solid var(--border)", marginTop: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.55, marginBottom: 8 }}>Removed</div>
                   {archivedMembers.map((m) => (
                     <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
@@ -1080,7 +1094,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 16, padding: 24 }}
             onClick={() => setConfirmRemoveMember(null)}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", width: "100%", maxWidth: 340, boxShadow: "0 12px 32px rgba(43,43,51,.25)" }}>
+              style={{ background: "var(--surface)", borderRadius: 18, padding: "20px 18px", width: "100%", maxWidth: 340, boxShadow: "0 12px 32px rgba(43,43,51,.25)" }}>
               <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, marginBottom: 6 }}>
                 Remove {confirmRemoveMember.name}?
               </div>
@@ -1089,7 +1103,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setConfirmRemoveMember(null)}
-                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "#fff", color: "#2B2B33", border: "1px solid #ECE7DC" }}>
+                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}>
                   Cancel
                 </button>
                 <button onClick={() => removeMember(confirmRemoveMember.id)}
@@ -1106,7 +1120,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
           <div style={{ position: "fixed", inset: 0, background: "rgba(43,43,51,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 12, padding: 24 }}
             onClick={() => setConfirmDelete(null)}>
             <div className="fc-sheet" onClick={(e) => e.stopPropagation()}
-              style={{ background: "#fff", borderRadius: 18, padding: "20px 18px", width: "100%", maxWidth: 340, boxShadow: "0 12px 32px rgba(43,43,51,.25)" }}>
+              style={{ background: "var(--surface)", borderRadius: 18, padding: "20px 18px", width: "100%", maxWidth: 340, boxShadow: "0 12px 32px rgba(43,43,51,.25)" }}>
               <div style={{ fontFamily: "'Fredoka', sans-serif", fontWeight: 600, fontSize: 17, marginBottom: 6 }}>
                 Delete this activity?
               </div>
@@ -1119,7 +1133,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => setConfirmDelete(null)}
-                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "#fff", color: "#2B2B33", border: "1px solid #ECE7DC" }}>
+                  style={{ flex: 1, borderRadius: 12, padding: "11px 0", fontSize: 14, fontWeight: 800, cursor: "pointer", background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}>
                   Cancel
                 </button>
                 <button onClick={() => { deleteEvent(confirmDelete.id); setConfirmDelete(null); }}
@@ -1148,5 +1162,5 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
   );
 }
 
-const navBtn = { width: 40, height: 40, borderRadius: 12, border: "1px solid #ECE7DC", background: "#fff", fontSize: 22, cursor: "pointer", lineHeight: 1 };
-const chip = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, border: "1px solid #ECE7DC", borderRadius: 999, padding: "6px 12px", cursor: "pointer" };
+const navBtn = { width: 40, height: 40, borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 22, cursor: "pointer", lineHeight: 1 };
+const chip = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, border: "1px solid var(--border)", borderRadius: 999, padding: "6px 12px", cursor: "pointer" };
