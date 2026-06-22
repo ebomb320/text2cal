@@ -16,7 +16,7 @@ import {
   purgeOldDeleted,
   subscribeToChanges,
 } from "../lib/calendarData";
-import { getAndAdvanceLastVisit } from "../lib/lastVisit";
+import { getLastVisit, advanceLastVisit } from "../lib/lastVisit";
 
 const memberById = (members, id) => members.find((m) => m.id === id) || members[0];
 const COLOR_OPTIONS = ["#8A5CF6", "#4A7CFA", "#F25C8A", "#34A06B", "#F2994A", "#E55050", "#2BB3B3", "#9B6B43"];
@@ -351,7 +351,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
         console.error("Failed to load events:", err);
       }
       purgeOldDeleted().catch(() => {});
-      setPreviousVisit(getAndAdvanceLastVisit(currentUser.id));
+      setPreviousVisit(getLastVisit(currentUser.id));
       setLoaded(true);
     })();
   }, [currentUser.id]);
@@ -370,14 +370,18 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
   // Safety net: if the phone was locked/backgrounded and missed a live
   // update, catch up the moment the tab becomes visible again.
   useEffect(() => {
-    const onVisible = () => {
+    const onVisibility = () => {
       if (document.visibilityState === "visible") {
         getEvents().then(setEvents).catch(() => {});
+      } else {
+        // Advance the last-visit timestamp only when actually leaving —
+        // this way a refresh keeps badges intact until events are viewed.
+        advanceLastVisit(currentUser.id);
       }
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [currentUser.id]);
 
   // Second safety net: mobile browsers can silently drop the live
   // connection (screen lock, backgrounded tab) with no error at all.
