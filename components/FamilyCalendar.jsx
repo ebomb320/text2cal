@@ -204,7 +204,7 @@ function useWindowWidth() {
 // Swipeable event row:
 //  - small swipe → reveals a Delete button (tap it to confirm via dialog)
 //  - full swipe across → deletes immediately (soft delete + Undo toast)
-function EventRow({ ev, members, onDelete, onSwipeDelete }) {
+function EventRow({ ev, members, onDelete, onSwipeDelete, isDark }) {
   const m = memberById(members, ev.member);
   const rowRef = useRef(null);
   const startXRef = useRef(null);
@@ -281,7 +281,7 @@ function EventRow({ ev, members, onDelete, onSwipeDelete }) {
   );
 }
 
-function Badge({ count }) {
+function Badge({ count, isDark }) {
   return (
     <span style={{
       position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, padding: "0 4px",
@@ -738,7 +738,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               style={{ ...chip, background: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--surface)", color: filter.length === 0 ? (isDark ? "#1B1620" : "#fff") : "var(--text)", borderColor: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--border)", boxShadow: filter.length === 0 && isDark ? "0 0 14px 2px rgba(255,176,102,.45)" : "none" }}>
               Everyone
             </button>
-            {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
+            {updateCounts.total > 0 && <Badge count={updateCounts.total} isDark={isDark} />}
           </span>
           {activeMembers.map((m) => {
             const on = filter.includes(m.id);
@@ -750,7 +750,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                   <span style={{ width: 8, height: 8, borderRadius: 99, background: on ? "#fff" : m.color }} />
                   {m.name}
                 </button>
-                {count > 0 && <Badge count={count} />}
+                {count > 0 && <Badge count={count} isDark={isDark} />}
               </span>
             );
           })}
@@ -760,7 +760,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 style={{ ...chip, background: "var(--surface)", color: "var(--text)", borderColor: "var(--border)", opacity: 0.7 }}>
                 🗑 Deleted ({deletedEvents.length})
               </button>
-              {updateCounts.trash > 0 && <Badge count={updateCounts.trash} />}
+              {updateCounts.trash > 0 && <Badge count={updateCounts.trash} isDark={isDark} />}
             </span>
           )}
           <button onClick={() => setShowEditNames(true)} aria-label="Edit family"
@@ -820,7 +820,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
               <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
             </div>
             {selectedEvents.length === 0 && <div style={{ fontSize: 14, opacity: 0.5, padding: "8px 0" }}>Nothing planned for this day.</div>}
-            {selectedEvents.map((ev) => <EventRow key={ev.id} ev={ev} members={members} onDelete={setConfirmDelete} onSwipeDelete={deleteEvent} />)}
+            {selectedEvents.map((ev) => <EventRow key={ev.id} ev={ev} members={members} onDelete={setConfirmDelete} onSwipeDelete={deleteEvent} isDark={isDark} />)}
           </div>
         )}
 
@@ -835,7 +835,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 <button onClick={() => setSelected(null)} aria-label="Close" style={{ border: "none", background: "none", cursor: "pointer", fontSize: 18, opacity: 0.4, padding: 4 }}>✕</button>
               </div>
               {selectedEvents.length === 0 && <div style={{ fontSize: 14, opacity: 0.5, padding: "8px 0" }}>Nothing planned for this day.</div>}
-              {selectedEvents.map((ev) => <EventRow key={ev.id} ev={ev} members={members} onDelete={setConfirmDelete} onSwipeDelete={deleteEvent} />)}
+              {selectedEvents.map((ev) => <EventRow key={ev.id} ev={ev} members={members} onDelete={setConfirmDelete} onSwipeDelete={deleteEvent} isDark={isDark} />)}
             </div>
           </div>
         )}
@@ -881,7 +881,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                     style={{ ...chip, background: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--surface)", color: filter.length === 0 ? (isDark ? "#1B1620" : "#fff") : "var(--text)", borderColor: filter.length === 0 ? (isDark ? "#F5F0E8" : "#2B2B33") : "var(--border)", boxShadow: filter.length === 0 && isDark ? "0 0 14px 2px rgba(255,176,102,.45)" : "none" }}>
                     Everyone
                   </button>
-                  {updateCounts.total > 0 && <Badge count={updateCounts.total} />}
+                  {updateCounts.total > 0 && <Badge count={updateCounts.total} isDark={isDark} />}
                 </span>
                 {activeMembers.map((m) => {
                   const on = filter.includes(m.id);
@@ -893,7 +893,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                         <span style={{ width: 8, height: 8, borderRadius: 99, background: on ? "#fff" : m.color }} />
                         {m.name}
                       </button>
-                      {count > 0 && <Badge count={count} />}
+                      {count > 0 && <Badge count={count} isDark={isDark} />}
                     </span>
                   );
                 })}
