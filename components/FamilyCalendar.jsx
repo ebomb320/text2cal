@@ -927,7 +927,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 onKeyDown={(e) => e.key === "Enter" && sendText()}
                 placeholder='e.g. "Soccer 9am" — date defaults to today'
                 disabled={sending}
-                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 999, padding: "11px 16px", fontSize: 15, background: "var(--surface)", boxSizing: "border-box" }}
+                style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 999, padding: "11px 16px", fontSize: 15, background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
               />
               <button onClick={sendText} disabled={sending} aria-label="Add activity"
                 style={{ width: 44, height: 44, borderRadius: 99, border: "none", background: draft.trim() && !sending ? "#4A7CFA" : "#C9C4B8", color: "#fff", fontSize: 18, cursor: sending ? "default" : "pointer", flexShrink: 0 }}>
@@ -1005,7 +1005,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                       onBlur={(e) => saveMemberName(m.id, e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
                       maxLength={24}
-                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, fontWeight: 700, background: "var(--surface)", boxSizing: "border-box" }}
+                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, fontWeight: 700, background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
                     />
                     {isAdmin && (
                       <button onClick={() => viewMemberLink(m)}
@@ -1056,7 +1056,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                       onKeyDown={(e) => e.key === "Enter" && handleAddMember()}
                       placeholder="Name"
                       maxLength={24}
-                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, background: "var(--surface)", boxSizing: "border-box" }}
+                      style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 12px", fontSize: 15, background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
                     />
                     <button onClick={handleAddMember} disabled={!newMemberName.trim() || addingMember}
                       style={{ border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 14, fontWeight: 800, color: "#fff", background: newMemberName.trim() && !addingMember ? "#2B2B33" : "#C9C4B8", cursor: newMemberName.trim() && !addingMember ? "pointer" : "default", flexShrink: 0 }}>
