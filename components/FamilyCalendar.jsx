@@ -929,7 +929,7 @@ export default function FamilyCalendar({ currentUser, members: initialMembers, i
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendText()}
-                placeholder="type date + activity ex. 8/24 eye exam 2pm"
+                placeholder="type date + activity ex. 8/24 exam 2pm"
                 disabled={sending}
                 style={{ flex: 1, border: "1px solid var(--border)", borderRadius: 999, padding: "11px 16px", fontSize: 15, background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" }}
               />
